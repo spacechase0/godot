@@ -335,7 +335,7 @@ void EditorResourcePreview::_thread() {
 	exited.set();
 }
 
-void EditorResourcePreview::queue_edited_resource_preview(const Ref<Resource> &p_res, Object *p_receiver, const StringName &p_receiver_func, const Variant &p_userdata) {
+void EditorResourcePreview::queue_edited_resource_preview(const Ref<Reference> &p_res, Object *p_receiver, const StringName &p_receiver_func, const Variant &p_userdata) {
 	ERR_FAIL_NULL(p_receiver);
 	ERR_FAIL_COND(!p_res.is_valid());
 
@@ -343,7 +343,9 @@ void EditorResourcePreview::queue_edited_resource_preview(const Ref<Resource> &p
 
 	String path_id = "ID:" + itos(p_res->get_instance_id());
 
-	if (cache.has(path_id) && cache[path_id].last_hash == p_res->hash_edited_version()) {
+	Ref<Resource> asRes = p_res;
+
+	if (asRes.is_valid() && cache.has(path_id) && cache[path_id].last_hash == asRes->hash_edited_version()) {
 		cache[path_id].order = order++;
 		p_receiver->call(p_receiver_func, path_id, cache[path_id].preview, cache[path_id].small_preview, p_userdata);
 		preview_mutex.unlock();

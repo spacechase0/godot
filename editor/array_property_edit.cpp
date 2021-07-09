@@ -257,6 +257,12 @@ void ArrayPropertyEdit::edit(Object *p_obj, const StringName &p_prop, const Stri
 	obj = p_obj->get_instance_id();
 	default_type = p_deftype;
 
+	if ( Object::cast_to< Node >( p_obj ) && p_prop == "components" )
+	{
+		subtype = Variant::OBJECT;
+		subtype_hint_string = "Component";
+	}
+
 	if (!p_hint_string.empty()) {
 		int hint_subtype_separator = p_hint_string.find(":");
 		if (hint_subtype_separator >= 0) {

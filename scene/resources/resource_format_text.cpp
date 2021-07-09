@@ -174,7 +174,42 @@ Ref<PackedScene> ResourceInteractiveLoaderText::_parse_node_tag(VariantParser::R
 	packed_scene.instance();
 
 	while (true) {
-		if (next_tag.name == "node") {
+		if ( next_tag.name == "component" )
+		{
+			int type = packed_scene->get_state()->add_name(next_tag.fields[ "type" ] );
+			int parent = packed_scene->get_state()->get_node_count() - 1; // TODO: Make a parent field, don't assume previous node was parent
+			
+			int comp = packed_scene->get_state()->get_node_component_count( parent );
+			packed_scene->get_state()->add_node_component( parent, type );
+			
+			while (true) {
+				String assign;
+				Variant value;
+
+				error = VariantParser::parse_tag_assign_eof(&stream, lines, error_text, next_tag, assign, value, &parser);
+
+				if (error) {
+					if (error != ERR_FILE_EOF) {
+						_printerr();
+						return Ref<PackedScene>();
+					} else {
+						return packed_scene;
+					}
+				}
+
+				if (assign != String()) {
+					int nameidx = packed_scene->get_state()->add_name(assign);
+					int valueidx = packed_scene->get_state()->add_value(value);
+					
+					packed_scene->get_state()->add_component_property(parent, comp, nameidx, valueidx);
+					//it's assignment
+				} else if (next_tag.name != String()) {
+					break;
+				}
+			}
+
+		}
+		else if (next_tag.name == "node") {
 			int parent = -1;
 			int owner = -1;
 			int type = -1;
@@ -1668,6 +1703,28 @@ Error ResourceFormatSaverTextInstance::save(const String &p_path, const RES &p_r
 				VariantWriter::write_to_string(state->get_node_property_value(i, j), vars, _write_resources, this);
 
 				f->store_string(String(state->get_node_property_name(i, j)).property_name_encode() + " = " + vars + "\n");
+			}
+
+			if ( state->get_node_component_count( i ) > 0 )
+			{
+				f->store_line(String());
+				for ( int j = 0; j < state->get_node_component_count( i ); ++j )
+				{
+					String line = "[component type=\"" + String( state->get_node_component_type( i, j ) ) + "\"]";
+					f->store_line( line );
+					
+					for (int k = 0; k < state->get_node_component_property_count(i, j); k++) {
+						String vars;
+						Variant val = state->get_node_component_property_value(i, j, k);
+						VariantWriter::write_to_string(val, vars, _write_resources, this);
+
+						f->store_string(String(state->get_node_component_property_name(i, j, k)).property_name_encode() + " = " + vars + "\n");
+					}
+					
+					if (j < state->get_node_component_count( i ) - 1) {
+						f->store_line(String());
+					}
+				}
 			}
 
 			if (i < state->get_node_count() - 1) {

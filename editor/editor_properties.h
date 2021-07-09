@@ -553,8 +553,8 @@ class EditorPropertyResource : public EditorProperty {
 	bool updating_theme = false;
 	bool opened_editor = false;
 
-	void _resource_selected(const RES &p_resource);
-	void _resource_changed(const RES &p_resource);
+	void _resource_selected(Ref<Reference> p_resource);
+	void _resource_changed(Ref<Reference> p_resource);
 
 	void _viewport_selected(const NodePath &p_path);
 

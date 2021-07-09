@@ -39,7 +39,7 @@
 #include "scene/gui/control.h"
 #include "scene/main/instance_placeholder.h"
 
-#define PACKED_SCENE_VERSION 2
+#define PACKED_SCENE_VERSION 3
 
 bool SceneState::can_instance() const {
 	return nodes.size() > 0;
@@ -182,6 +182,85 @@ Node *SceneState::instance(GenEditState p_edit_state) const {
 		if (node) {
 			// may not have found the node (part of instanced scene and removed)
 			// if found all is good, otherwise ignore
+
+			// Components
+			int ncomp_count = n.components.size();
+			if ( ncomp_count )
+			{
+				const ComponentData *ncomps = &n.components[0];
+
+				for ( int k = 0; k < ncomp_count; ++k )
+				{
+					Ref<Component> comp = Object::cast_to< Component >( ClassDB::instance( snames[ ncomps[ k ].type ] ) );
+					
+					int nprop_count = ncomps[ k ].properties.size();
+					if (nprop_count) {
+						const ComponentData::Property *nprops = &n.components[ k ].properties[0];
+
+						for (int j = 0; j < nprop_count; j++) {
+							bool valid;
+							ERR_FAIL_INDEX_V(nprops[j].name, sname_count, nullptr);
+							ERR_FAIL_INDEX_V(nprops[j].value, prop_count, nullptr);
+
+							if (snames[nprops[j].name] == CoreStringNames::get_singleton()->_script) {
+								//work around to avoid old script variables from disappearing, should be the proper fix to:
+								//https://github.com/godotengine/godot/issues/2958
+
+								//store old state
+								List<Pair<StringName, Variant>> old_state;
+								if (comp->get_script_instance()) {
+									comp->get_script_instance()->get_property_state(old_state);
+								}
+
+								comp->set(snames[nprops[j].name], props[nprops[j].value], &valid);
+								
+								//restore old state for new script, if exists
+								for (List<Pair<StringName, Variant>>::Element *E = old_state.front(); E; E = E->next()) {
+									comp->set(E->get().first, E->get().second);
+								}
+							} else {
+								Variant value = props[nprops[j].value];
+
+								if (value.get_type() == Variant::OBJECT) {
+									//handle resources that are local to scene by duplicating them if needed
+									Ref<Resource> res = value;
+									if (res.is_valid()) {
+										if (res->is_local_to_scene()) {
+											Map<Ref<Resource>, Ref<Resource>>::Element *E = resources_local_to_scene.find(res);
+
+											if (E) {
+												value = E->get();
+											} else {
+												ERR_FAIL_V_MSG( nullptr, "TODO2" ); // Don't know what to do here, since resources want a node, not a component
+												/*
+												if (p_edit_state == GEN_EDIT_STATE_MAIN) {
+													//for the main scene, use the resource as is
+													res->configure_for_local_scene(base, resources_local_to_scene);
+													resources_local_to_scene[res] = res;
+
+												} else {
+													//for instances, a copy must be made
+													Node *base2 = i == 0 ? node : ret_nodes[0];
+													Ref<Resource> local_dupe = res->duplicate_for_local_scene(base2, resources_local_to_scene);
+													resources_local_to_scene[res] = local_dupe;
+													res = local_dupe;
+													value = local_dupe;
+												}*/
+											}
+											//must make a copy, because this res is local to scene
+										}
+									}
+								} else if (p_edit_state == GEN_EDIT_STATE_INSTANCE) {
+									value = value.duplicate(true); // Duplicate arrays and dictionaries for the editor
+								}
+								comp->set(snames[nprops[j].name], value, &valid);
+							}
+						}
+					}
+					
+					node->add_component( comp );
+				}
+			}
 
 			//properties
 			int nprop_count = n.properties.size();
@@ -466,6 +545,134 @@ Error SceneState::_parse_node(Node *p_owner, Node *p_node, int p_parent_idx, Map
 	// all setup, we then proceed to check all properties for the node
 	// and save the ones that are worth saving
 
+	// And components
+	Array compList = p_node->get_components();
+	for ( int i = 0; i < compList.size(); ++i )
+	{
+		Component* comp = Object::cast_to< Component >( compList[ i ] );
+		
+		List<PropertyInfo> plist;
+		comp->get_property_list(&plist);
+		StringName type = comp->get_class();
+		
+		Ref<Script> script = comp->get_script();
+		if ( Engine::get_singleton()->is_editor_hint() && script->is_valid() )
+			script->update_exports();
+		
+		ComponentData compData;
+		compData.type = _nm_get_string( comp->get_class(), name_map );
+		nd.components.push_back( compData );
+
+		for (List<PropertyInfo>::Element *E = plist.front(); E; E = E->next()) {
+			if (!(E->get().usage & PROPERTY_USAGE_STORAGE) /*&& E->get().name != CoreStringNames::get_singleton()->_script*/) {
+				continue;
+			}
+
+			String name = E->get().name;
+			Variant value = comp->get(E->get().name);
+
+			bool isdefault = false;
+			Variant default_value = ClassDB::class_get_default_property_value(type, name);
+
+			if (default_value.get_type() != Variant::NIL) {
+				isdefault = bool(Variant::evaluate(Variant::OP_EQUAL, value, default_value));
+			}
+
+			if (!isdefault && script.is_valid() && script->get_property_default_value(name, default_value)) {
+				isdefault = bool(Variant::evaluate(Variant::OP_EQUAL, value, default_value));
+			}
+			// the version above makes more sense, because it does not rely on placeholder or usage flag
+			// in the script, just the default value function.
+			// if (E->get().usage & PROPERTY_USAGE_SCRIPT_DEFAULT_VALUE) {
+			// 	isdefault = true; //is script default value
+			// }
+
+			if (pack_state_stack.size()) {
+				// we are on part of an instanced subscene
+				// or part of instanced scene.
+				// only save what has been changed
+				// only save changed properties in instance
+
+				if ((E->get().usage & PROPERTY_USAGE_NO_INSTANCE_STATE) || E->get().name == "__meta__") {
+					//property has requested that no instance state is saved, sorry
+					//also, meta won't be overridden or saved
+					continue;
+				}
+
+				bool exists = false;
+				Variant original;
+
+				// TODO: Fix this block of code
+				/*
+				for (List<PackState>::Element *F = pack_state_stack.back(); F; F = F->prev()) {
+					//check all levels of pack to see if the property exists somewhere
+					const PackState &ps = F->get();
+
+					original = ps.state->get_component_value(ps.node, nd.components.size() - 1, E->get().name, exists); // spacechase0: Not sure if this is right, it's late :P
+					if (exists) {
+						break;
+					}
+				}
+				//*/
+
+				if (exists) {
+					if ( E->get().name == CoreStringNames::get_singleton()->_script )
+					{
+						if ( ( (Ref<Script>) value )->get_path() == ( (Ref<Script>) original )->get_path() )
+						{
+							//OS::get_singleton()->print("skipping because same script\n" );
+							continue;
+						}
+						else
+							;//OS::get_singleton()->print("diff script: %s %s %s\n", comp->get_component_name().utf8().get_data(), ( ( String ) ( (Ref<Script>) value )->get_path() ).utf8().get_data(), ( ( String ) ((Ref<Script>) original )->get_path() ).utf8().get_data() );
+					}
+					//check if already exists and did not change
+					else if (value.get_type() == Variant::REAL && original.get_type() == Variant::REAL) {
+						//this must be done because, as some scenes save as text, there might be a tiny difference in floats due to numerical error
+						float a = value;
+						float b = original;
+
+						if (Math::is_equal_approx(a, b)) {
+							continue;
+						}
+					} else if (bool(Variant::evaluate(Variant::OP_EQUAL, value, original))) {
+						continue;
+					}
+					else
+					{
+						//OS::get_singleton()->print("these were different: %s %s\n", ( ( String ) value ).utf8().get_data(), ( ( String ) original ).utf8().get_data() );
+					}
+				}
+
+				if (!exists && isdefault) {
+					//does not exist in original node, but it's the default value
+					//so safe to skip too.
+					continue;
+				}
+
+			} else {
+				if (isdefault) {
+					//it's the default value, no point in saving it
+					continue;
+				}
+			}
+
+			ComponentData::Property prop;
+			prop.name = _nm_get_string(name, name_map);
+			prop.value = _vm_get_variant(value, variant_map);
+			nd.components.write[ nd.components.size() - 1 ].properties.push_back( prop );
+		}
+
+		if ( nd.components[ nd.components.size() - 1 ].properties.size() == 0 )
+		{
+			//OS::get_singleton()->print( "removing component %s of %s due to no props\n", ( ( String ) comp->get_component_name() ).utf8().get_data(), ((String)p_node->get_name()).utf8().get_data() );
+			nd.components.remove( nd.components.size() - 1 );
+		}
+		else
+			;//OS::get_singleton()->print( "keeping component %s of %s due to %i props\n", ( ( String ) comp->get_component_name() ).utf8().get_data(), ((String)p_node->get_name()).utf8().get_data(), nd.components[ nd.components.size() - 1 ].properties.size() );
+	}
+
+
 	List<PropertyInfo> plist;
 	p_node->get_property_list(&plist);
 	StringName type = p_node->get_class();
@@ -625,7 +832,7 @@ Error SceneState::_parse_node(Node *p_owner, Node *p_node, int p_parent_idx, Map
 	// below condition is true for all nodes of the scene being saved, and ones in subscenes
 	// that hold changes
 
-	bool save_node = nd.properties.size() || nd.groups.size(); // some local properties or groups exist
+	bool save_node = nd.components.size() || nd.properties.size() || nd.groups.size(); // some local properties or groups exist
 	save_node = save_node || p_node == p_owner; // owner is always saved
 	save_node = save_node || (p_node->get_owner() == p_owner && instanced_by_owner); //part of scene and not instanced
 
@@ -1133,6 +1340,20 @@ void SceneState::set_bundled_scene(const Dictionary &p_dictionary) {
 			for (int j = 0; j < nd.groups.size(); j++) {
 				nd.groups.write[j] = r[idx++];
 			}
+
+			if (version >= 3)
+			{
+				nd.components.resize( r[ idx++ ] );
+				for ( int j = 0; j < nd.components.size(); j++ )
+				{
+					nd.components.write[j].type = r[ idx++ ];
+					nd.components.write[j].properties.resize(r[idx++]);
+					for (int k = 0; k < nd.properties.size(); k++) {
+						nd.components.write[j].properties.write[k].name = r[idx++];
+						nd.components.write[j].properties.write[k].value = r[idx++];
+					}
+				}
+			}
 		}
 	}
 
@@ -1219,6 +1440,18 @@ Dictionary SceneState::get_bundled_scene() const {
 		rnodes.push_back(nd.groups.size());
 		for (int j = 0; j < nd.groups.size(); j++) {
 			rnodes.push_back(nd.groups[j]);
+		}
+
+		rnodes.push_back( nd.components.size() );
+		for ( int j = 0; j < nd.components.size(); ++j )
+		{
+			rnodes.push_back( nd.components[ j ].type );
+			rnodes.push_back( nd.components[ j ].properties.size() );
+			for ( int k = 0; k < nd.components[ j ].properties.size(); ++k )
+			{
+				rnodes.push_back( nd.components[ j ].properties[ k ].name );
+				rnodes.push_back( nd.components[ j ].properties[ k ].value );
+			}
 		}
 	}
 
@@ -1605,6 +1838,71 @@ void SceneState::_bind_methods() {
 SceneState::SceneState() {
 	base_scene_idx = -1;
 	last_modified_time = 0;
+}
+
+Variant SceneState::get_component_value(int p_node, int p_component, const StringName &p_property, bool &found) const
+{
+	found = false;
+
+	ERR_FAIL_COND_V(p_node < 0, Variant());
+
+	if (p_node < nodes.size() && p_component < nodes[ p_node ].components.size()) {
+		//find in built-in nodes
+		int pc = nodes[p_node].components[ p_component ].properties.size();
+		const StringName *namep = names.ptr();
+
+		const ComponentData::Property *p = nodes[p_node].components[ p_component ].properties.ptr();
+		for (int i = 0; i < pc; i++) {
+			if (p_property == namep[p[i].name]) {
+				found = true;
+				return variants[p[i].value];
+			}
+		}
+	}
+
+	//property not found, try on instance
+
+	if (base_scene_node_remap.has(p_node)) {
+		ERR_FAIL_V_MSG(Variant(), "TODO1");
+		//return _get_base_scene_state()->get_component_property_value(base_scene_node_remap[p_node], p_property, found);
+	}
+
+	return Variant();
+}
+int SceneState::get_node_component_count(int p_idx) const
+{
+	return nodes[ p_idx ].components.size();
+}
+StringName SceneState::get_node_component_type(int p_idx, int p_component) const
+{
+	return names[ nodes[ p_idx ].components[ p_component ].type ];
+}
+int SceneState::get_node_component_property_count(int p_idx, int p_component) const
+{
+	return nodes[ p_idx ].components[ p_component ].properties.size();
+}
+StringName SceneState::get_node_component_property_name(int p_idx, int p_component, int p_prop) const
+{
+	return names[ nodes[ p_idx ].components[ p_component ].properties[ p_prop ].name ];
+}
+Variant SceneState::get_node_component_property_value(int p_idx, int p_component, int p_prop) const
+{
+	return variants[ nodes[ p_idx ].components[ p_component ].properties[ p_prop ].value ];
+}
+void SceneState::add_node_component(int p_node, int p_type)
+{
+	ComponentData comp;
+	comp.type = p_type;
+	
+	nodes.write[ p_node ].components.push_back( comp );
+}
+void SceneState::add_component_property(int p_node, int p_component, int p_name, int p_value)
+{
+	ComponentData::Property prop;
+	prop.name = p_name;
+	prop.value = p_value;
+
+	nodes.write[ p_node ].components.write[ p_component ].properties.push_back( prop );
 }
 
 ////////////////

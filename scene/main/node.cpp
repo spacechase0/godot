@@ -2068,6 +2068,11 @@ Node *Node::_duplicate(int p_flags, Map<const Node *, Node *> *r_duplimap) const
 		}
 	}
 
+	/*for ( auto it = data.components.next( nullptr ); it != nullptr; it = data.components.next( it ) )
+	{
+		node->add_component( data.components.get( * it ) );
+	}*/
+
 	return node;
 }
 
@@ -2892,6 +2897,15 @@ void Node::_bind_methods() {
 	BIND_VMETHOD(MethodInfo("_unhandled_input", PropertyInfo(Variant::OBJECT, "event", PROPERTY_HINT_RESOURCE_TYPE, "InputEvent")));
 	BIND_VMETHOD(MethodInfo("_unhandled_key_input", PropertyInfo(Variant::OBJECT, "event", PROPERTY_HINT_RESOURCE_TYPE, "InputEventKey")));
 	BIND_VMETHOD(MethodInfo(Variant::STRING, "_get_configuration_warning"));
+	
+    ClassDB::bind_method( D_METHOD( "get_components_editor" ), &Node::get_components_editor );
+    ClassDB::bind_method( D_METHOD( "get_components" ), &Node::get_components );
+    ClassDB::bind_method( D_METHOD( "get_component", "componentName" ), &Node::get_component );
+    ClassDB::bind_method( D_METHOD( "set_components" ), &Node::set_components );
+    ClassDB::bind_method( D_METHOD( "add_component", "component" ), &Node::add_component );
+    ClassDB::bind_method( D_METHOD( "remove_component", "component" ), &Node::remove_component );
+
+	ADD_PROPERTY( PropertyInfo( Variant::ARRAY, "components", PROPERTY_HINT_RESOURCE_TYPE, "17/17:Component", PROPERTY_USAGE_EDITOR ), "set_components", "get_components_editor" );
 }
 
 String Node::_get_name_num_separator() {
@@ -2951,6 +2965,56 @@ Node::~Node() {
 	ERR_FAIL_COND(data.children.size());
 
 	orphan_node_count--;
+}
+
+Array Node::get_components_editor()
+{
+    Array ret;
+    for ( auto it = data.components.next( nullptr ); it != nullptr; it = data.components.next( it ) )
+        ret.push_back( Variant( data.components[ * it ] ) );
+	ret.push_back( Variant() ); // empty slot for editor
+    return ret;
+}
+
+Array Node::get_components()
+{
+    Array ret;
+    for ( auto it = data.components.next( nullptr ); it != nullptr; it = data.components.next( it ) )
+        ret.push_back( data.components[ * it ].ptr() );
+    return ret;
+}
+
+Ref<Component> Node::get_component( StringName globalName )
+{
+	if ( !data.components.has( globalName ) )
+		return nullptr;
+	return data.components[ globalName ];
+}
+
+void Node::set_components( Array comps )
+{
+	data.components.clear();
+	for ( int i = 0; i < comps.size(); ++i )
+	{
+		add_component( Object::cast_to< Component >( ( Object* ) comps[ i ] ) );
+	}
+}
+
+void Node::add_component( Ref< Component > component )
+{
+	if ( component.is_null() )
+		return;
+
+	data.components[ component->get_component_name() ] = component;
+    add_to_group( "components/" + component->get_component_name() );
+}
+
+void Node::remove_component( Ref< Component > component )
+{
+	if ( component.is_null() || !data.components.has( component->get_component_name() ) )
+		return;
+	data.components.erase( component->get_component_name() );
+    remove_from_group( "components/" + component->get_component_name() );
 }
 
 ////////////////////////////////

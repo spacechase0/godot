@@ -262,6 +262,8 @@ void register_scene_types() {
 	OS::get_singleton()->yield(); //may take time to init
 
 	ClassDB::register_class<Object>();
+	
+	ClassDB::register_class<Component>();
 
 	ClassDB::register_class<Node>();
 	ClassDB::register_virtual_class<InstancePlaceholder>();
@@ -740,7 +742,6 @@ void register_scene_types() {
 	ClassDB::add_compatibility_class("Mesh", "ArrayMesh");
 
 #endif
-
 	OS::get_singleton()->yield(); //may take time to init
 
 	for (int i = 0; i < 20; i++) {

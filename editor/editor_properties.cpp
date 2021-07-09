@@ -2078,7 +2078,7 @@ EditorPropertyRID::EditorPropertyRID() {
 
 ////////////// RESOURCE //////////////////////
 
-void EditorPropertyResource::_resource_selected(const RES &p_resource) {
+void EditorPropertyResource::_resource_selected(Ref<Reference> p_resource) {
 	if (use_sub_inspector) {
 		bool unfold = !get_edited_object()->editor_is_section_unfolded(get_edited_property());
 		get_edited_object()->editor_set_section_unfold(get_edited_property(), unfold);
@@ -2088,7 +2088,7 @@ void EditorPropertyResource::_resource_selected(const RES &p_resource) {
 	}
 }
 
-void EditorPropertyResource::_resource_changed(const RES &p_resource) {
+void EditorPropertyResource::_resource_changed(Ref<Reference> p_resource) {
 	// Make visual script the correct type.
 	Ref<Script> s = p_resource;
 	if (get_edited_object() && s.is_valid()) {
@@ -2273,7 +2273,7 @@ void EditorPropertyResource::setup(Object *p_object, const String &p_path, const
 }
 
 void EditorPropertyResource::update_property() {
-	RES res = get_edited_object()->get(get_edited_property());
+	Ref<Reference> res = get_edited_object()->get(get_edited_property());
 
 	if (use_sub_inspector) {
 		if (res.is_valid() != resource_picker->is_toggle_mode()) {
