@@ -774,7 +774,7 @@ void EditorResourcePicker::set_edited_resource(Ref<Reference> p_resource) {
 	_update_resource();
 }
 
-RES EditorResourcePicker::get_edited_resource() {
+Ref<Reference> EditorResourcePicker::get_edited_resource() {
 	return edited_resource;
 }
 
