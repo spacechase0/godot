@@ -100,7 +100,7 @@ public:
 	Vector<String> get_allowed_types() const;
 
 	void set_edited_resource(Ref<Reference> p_resource);
-	RES get_edited_resource();
+	Ref<Reference> get_edited_resource();
 
 	void set_toggle_mode(bool p_enable);
 	bool is_toggle_mode() const;
