@@ -32,6 +32,7 @@
 
 #include "navigation_mesh_generator.h"
 
+#include "core/math/convex_hull.h"
 #include "core/math/quick_hull.h"
 #include "core/os/thread.h"
 #include "scene/3d/collision_shape.h"
