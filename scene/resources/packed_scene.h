@@ -52,6 +52,18 @@ class SceneState : public Reference {
 		NAME_MASK = (1 << NAME_INDEX_BITS) - 1,
 	};
 
+	struct ComponentData
+	{
+		int type;
+		
+		struct Property {
+			int name;
+			int value;
+		};
+
+		Vector<Property> properties;
+	};
+
 	struct NodeData {
 		int parent;
 		int owner;
@@ -65,6 +77,7 @@ class SceneState : public Reference {
 			int value;
 		};
 
+		Vector<ComponentData> components;
 		Vector<Property> properties;
 		Vector<int> groups;
 	};
@@ -186,6 +199,16 @@ public:
 	uint64_t get_last_modified_time() const { return last_modified_time; }
 
 	SceneState();
+	
+
+	Variant get_component_value(int p_node, int p_component, const StringName &p_property, bool &found) const;
+	int get_node_component_count(int p_idx) const;
+	StringName get_node_component_type(int p_idx, int p_component) const;
+	int get_node_component_property_count(int p_idx, int p_component) const;
+	StringName get_node_component_property_name(int p_idx, int p_component, int p_prop) const;
+	Variant get_node_component_property_value(int p_idx, int p_component, int p_prop) const;
+	void add_node_component(int p_node, int p_type);
+	void add_component_property(int p_node, int p_component, int p_name, int p_value);
 };
 
 VARIANT_ENUM_CAST(SceneState::GenEditState)

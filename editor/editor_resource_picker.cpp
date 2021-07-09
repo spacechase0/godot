@@ -42,23 +42,25 @@ void EditorResourcePicker::_update_resource() {
 	preview_rect->set_texture(Ref<Texture>());
 	assign_button->set_custom_minimum_size(Size2(1, 1));
 
-	if (edited_resource == RES()) {
+	if (edited_resource.is_null()) {
 		assign_button->set_icon(Ref<Texture>());
 		assign_button->set_text(TTR("[empty]"));
 	} else {
 		assign_button->set_icon(EditorNode::get_singleton()->get_object_icon(edited_resource.operator->(), "Object"));
 
-		if (edited_resource->get_name() != String()) {
-			assign_button->set_text(edited_resource->get_name());
-		} else if (edited_resource->get_path().is_resource_file()) {
-			assign_button->set_text(edited_resource->get_path().get_file());
-			assign_button->set_tooltip(edited_resource->get_path());
+		auto comp = Object::cast_to< Component >( edited_resource.ptr() );
+		auto res = Object::cast_to< Resource >( edited_resource.ptr() );
+		if (!comp && res->get_name() != String()) {
+			assign_button->set_text(res->get_name());
+		} else if (res && res->get_path().is_resource_file()) {
+			assign_button->set_text(res->get_path().get_file());
+			assign_button->set_tooltip(res->get_path());
 		} else {
-			assign_button->set_text(edited_resource->get_class());
+			assign_button->set_text(comp ? comp->get_component_name() : edited_resource->get_class());
 		}
 
-		if (edited_resource->get_path().is_resource_file()) {
-			assign_button->set_tooltip(edited_resource->get_path());
+		if (res && res->get_path().is_resource_file()) {
+			assign_button->set_tooltip(res->get_path());
 		}
 
 		// Preview will override the above, so called at the end.
@@ -73,7 +75,7 @@ void EditorResourcePicker::_update_resource_preview(const String &p_path, const 
 
 	String type = edited_resource->get_class_name();
 	if (ClassDB::class_exists(type) && ClassDB::is_parent_class(type, "Script")) {
-		assign_button->set_text(edited_resource->get_path().get_file());
+		assign_button->set_text(Object::cast_to<Resource>(edited_resource.ptr())->get_path().get_file());
 		return;
 	}
 
@@ -155,12 +157,15 @@ void EditorResourcePicker::_update_menu_items() {
 	if (edited_resource.is_valid()) {
 		edit_menu->add_icon_item(get_icon("Edit", "EditorIcons"), TTR("Edit"), OBJ_MENU_EDIT);
 		edit_menu->add_icon_item(get_icon("Clear", "EditorIcons"), TTR("Clear"), OBJ_MENU_CLEAR);
-		edit_menu->add_icon_item(get_icon("Duplicate", "EditorIcons"), TTR("Make Unique"), OBJ_MENU_MAKE_UNIQUE);
-		edit_menu->add_icon_item(get_icon("Save", "EditorIcons"), TTR("Save"), OBJ_MENU_SAVE);
+		if ( base_type != "Component" )
+		{
+			edit_menu->add_icon_item(get_icon("Duplicate", "EditorIcons"), TTR("Make Unique"), OBJ_MENU_MAKE_UNIQUE);
+			edit_menu->add_icon_item(get_icon("Save", "EditorIcons"), TTR("Save"), OBJ_MENU_SAVE);
 
-		if (edited_resource->get_path().is_resource_file()) {
-			edit_menu->add_separator();
-			edit_menu->add_item(TTR("Show in FileSystem"), OBJ_MENU_SHOW_IN_FILE_SYSTEM);
+			if (Object::cast_to< Resource >( edited_resource.ptr() )->get_path().is_resource_file()) {
+				edit_menu->add_separator();
+				edit_menu->add_item(TTR("Show in FileSystem"), OBJ_MENU_SHOW_IN_FILE_SYSTEM);
+			}
 		}
 	}
 
@@ -248,7 +253,7 @@ void EditorResourcePicker::_edit_menu_cbk(int p_which) {
 		} break;
 
 		case OBJ_MENU_CLEAR: {
-			edited_resource = RES();
+			edited_resource = nullptr;
 			emit_signal("resource_changed", edited_resource);
 			_update_resource();
 		} break;
@@ -306,7 +311,7 @@ void EditorResourcePicker::_edit_menu_cbk(int p_which) {
 
 		case OBJ_MENU_SHOW_IN_FILE_SYSTEM: {
 			FileSystemDock *file_system_dock = EditorNode::get_singleton()->get_filesystem_dock();
-			file_system_dock->navigate_to_path(edited_resource->get_path());
+			file_system_dock->navigate_to_path(Object::cast_to<Resource>(edited_resource.ptr())->get_path());
 
 			// Ensure that the FileSystem dock is visible.
 			TabContainer *tab_container = (TabContainer *)file_system_dock->get_parent_control();
@@ -348,13 +353,10 @@ void EditorResourcePicker::_edit_menu_cbk(int p_which) {
 			}
 
 			if (!obj) {
-				obj = EditorNode::get_editor_data().instance_custom_type(intype, "Resource");
+				obj = EditorNode::get_editor_data().instance_custom_type(intype, base_type);
 			}
 
-			Resource *resp = Object::cast_to<Resource>(obj);
-			ERR_BREAK(!resp);
-
-			edited_resource = RES(resp);
+			edited_resource = obj;
 			emit_signal("resource_changed", edited_resource);
 			_update_resource();
 		} break;
@@ -376,8 +378,8 @@ void EditorResourcePicker::set_create_options(Object *p_menu_node) {
 		_get_allowed_types(false, &allowed_types);
 
 		Vector<EditorData::CustomType> custom_resources;
-		if (EditorNode::get_editor_data().get_custom_types().has("Resource")) {
-			custom_resources = EditorNode::get_editor_data().get_custom_types()["Resource"];
+		if (EditorNode::get_editor_data().get_custom_types().has(base_type)) {
+			custom_resources = EditorNode::get_editor_data().get_custom_types()[base_type];
 		}
 
 		for (Set<String>::Element *E = allowed_types.front(); E; E = E->next()) {
@@ -486,8 +488,8 @@ void EditorResourcePicker::_get_allowed_types(bool p_with_convert, Set<String> *
 		}
 	}
 
-	if (EditorNode::get_editor_data().get_custom_types().has("Resource")) {
-		Vector<EditorData::CustomType> custom_resources = EditorNode::get_editor_data().get_custom_types()["Resource"];
+	if (EditorNode::get_editor_data().get_custom_types().has(base_type)) {
+		Vector<EditorData::CustomType> custom_resources = EditorNode::get_editor_data().get_custom_types()[base_type];
 
 		for (int i = 0; i < custom_resources.size(); i++) {
 			p_vector->insert(custom_resources[i].name);
@@ -729,9 +731,9 @@ Vector<String> EditorResourcePicker::get_allowed_types() const {
 	return types;
 }
 
-void EditorResourcePicker::set_edited_resource(RES p_resource) {
+void EditorResourcePicker::set_edited_resource(Ref<Reference> p_resource) {
 	if (!p_resource.is_valid()) {
-		edited_resource = RES();
+		edited_resource = nullptr;
 		_update_resource();
 		return;
 	}

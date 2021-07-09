@@ -632,6 +632,7 @@ if selected_platform in platform_list:
     SConscript("scene/SCsub")
     SConscript("editor/SCsub")
     SConscript("drivers/SCsub")
+    SConscript("spaceecs/SCsub")
 
     SConscript("platform/SCsub")
     SConscript("modules/SCsub")

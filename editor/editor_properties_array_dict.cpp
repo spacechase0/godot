@@ -330,12 +330,13 @@ void EditorPropertyArray::update_property() {
 				value_type = subtype;
 			}
 
+			auto comp = Object::cast_to<Component>(value);
 			if (value_type == Variant::OBJECT && Object::cast_to<EncodedObjectAsID>(value)) {
 				EditorPropertyObjectID *editor = memnew(EditorPropertyObjectID);
 				editor->setup("Object");
 				prop = editor;
 			} else {
-				prop = EditorInspector::instantiate_property_editor(nullptr, value_type, "", subtype_hint, subtype_hint_string, 0);
+				prop = EditorInspector::instantiate_property_editor(comp, value_type, "", subtype_hint, subtype_hint_string, 0);
 			}
 
 			prop->set_object_and_property(object.ptr(), prop_name);

@@ -41,7 +41,7 @@ class EditorResourcePicker : public HBoxContainer {
 	GDCLASS(EditorResourcePicker, HBoxContainer);
 
 	String base_type;
-	RES edited_resource;
+	Ref<Reference> edited_resource;
 
 	bool editable = true;
 	bool dropping = false;
@@ -99,7 +99,7 @@ public:
 	String get_base_type() const;
 	Vector<String> get_allowed_types() const;
 
-	void set_edited_resource(RES p_resource);
+	void set_edited_resource(Ref<Reference> p_resource);
 	RES get_edited_resource();
 
 	void set_toggle_mode(bool p_enable);
