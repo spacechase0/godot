@@ -39,7 +39,7 @@
 #include "core/script_language.h"
 #include "scene/main/scene_tree.h"
 
-#include "spaceecs/component.h"
+#include "scene/main/node_component.h"
 
 class Viewport;
 class SceneState;
@@ -138,7 +138,7 @@ private:
 
 		mutable NodePath *path_cache;
 
-		HashMap< StringName, Ref< Component > > components;
+		HashMap< StringName, Ref< NodeComponent > > components;
 
 	} data;
 
@@ -447,10 +447,10 @@ public:
 
     Array get_components_editor();
     Array get_components();
-    Ref<Component> get_component( StringName globalName );
+    Ref<NodeComponent> get_component( StringName globalName );
 	void set_components( Array components );
-    void add_component( Ref< Component > component );
-    void remove_component( Ref< Component > component );
+    void add_component( Ref< NodeComponent > component );
+    void remove_component( Ref< NodeComponent > component );
 };
 
 VARIANT_ENUM_CAST(Node::DuplicateFlags);

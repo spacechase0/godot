@@ -1,4 +1,4 @@
-#include "component.h"
+#include "node_component.h"
 
 #include "core/core_string_names.h"
 #include "core/list.h"
@@ -8,18 +8,18 @@
 #include "core/script_language.h"
 #include "core/variant.h"
 
-void Component::_bind_methods()
+void NodeComponent::_bind_methods()
 {
-    //ClassDB::bind_method( D_METHOD( "duplicate" ), &Component::duplicate );
+    //ClassDB::bind_method( D_METHOD( "duplicate" ), &NodeComponent::duplicate );
     BIND_VMETHOD( MethodInfo( Variant::STRING, "_get_component_name" ) );
 
-    ADD_GROUP( "Component", "component" );
+    ADD_GROUP( "Component", "component_" );
 }
 /*
-Ref<Component> Component::duplicate() const
+Ref<NodeComponent> NodeComponent::duplicate() const
 {
-	Ref< Component > comp = ( Component* ) ClassDB::instance( get_class() );
-	ERR_FAIL_COND_V( comp.is_null(), Ref< Component >() ) ;
+	Ref< NodeComponent > comp = ( NodeComponent* ) ClassDB::instance( get_class() );
+	ERR_FAIL_COND_V( comp.is_null(), Ref< NodeComponent >() ) ;
 
     bool is_valid = false;
 	StringName script_property_name = CoreStringNames::get_singleton()->_script;
@@ -53,20 +53,20 @@ Ref<Component> Component::duplicate() const
 	return comp;
 }*/
 
-String Component::get_component_name() const
+String NodeComponent::get_component_name() const
 {
     if ( get_script_instance() )
     {
         //OS::get_singleton()->print("script:%s\n",((String)get_script_instance()->get_script()->get_path()).utf8().get_data());
         Variant ret = get_script_instance()->call( "_get_component_name" );
         if ( ret.get_type() != Variant::STRING )
-            OS::get_singleton()->print("Component name was wrong type for: %s %i %s\n", get_script_instance()->get_script()->get_path().utf8().get_data(), ret.get_type(), typeid( * get_script_instance() ).name() );
+            OS::get_singleton()->print("NodeComponent name was wrong type for: %s %i\n", get_script_instance()->get_script()->get_path().utf8().get_data(), ret.get_type()/*, typeid( * get_script_instance() ).name()*/ );
         return ret;
     }
     //OS::get_singleton()->print("wat\n");
     return get_class_name();
 }
 
-Component::~Component()
+NodeComponent::~NodeComponent()
 {
 }

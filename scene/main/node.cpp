@@ -2905,7 +2905,7 @@ void Node::_bind_methods() {
     ClassDB::bind_method( D_METHOD( "add_component", "component" ), &Node::add_component );
     ClassDB::bind_method( D_METHOD( "remove_component", "component" ), &Node::remove_component );
 
-	ADD_PROPERTY( PropertyInfo( Variant::ARRAY, "components", PROPERTY_HINT_RESOURCE_TYPE, "17/17:Component", PROPERTY_USAGE_EDITOR ), "set_components", "get_components_editor" );
+	ADD_PROPERTY( PropertyInfo( Variant::ARRAY, "components", PROPERTY_HINT_RESOURCE_TYPE, "17/17:NodeComponent", PROPERTY_USAGE_EDITOR ), "set_components", "get_components_editor" );
 }
 
 String Node::_get_name_num_separator() {
@@ -2984,7 +2984,7 @@ Array Node::get_components()
     return ret;
 }
 
-Ref<Component> Node::get_component( StringName globalName )
+Ref<NodeComponent> Node::get_component( StringName globalName )
 {
 	if ( !data.components.has( globalName ) )
 		return nullptr;
@@ -2996,11 +2996,11 @@ void Node::set_components( Array comps )
 	data.components.clear();
 	for ( int i = 0; i < comps.size(); ++i )
 	{
-		add_component( Object::cast_to< Component >( ( Object* ) comps[ i ] ) );
+		add_component( Object::cast_to< NodeComponent >( ( Object* ) comps[ i ] ) );
 	}
 }
 
-void Node::add_component( Ref< Component > component )
+void Node::add_component( Ref< NodeComponent > component )
 {
 	if ( component.is_null() )
 		return;
@@ -3009,7 +3009,7 @@ void Node::add_component( Ref< Component > component )
     add_to_group( "components/" + component->get_component_name() );
 }
 
-void Node::remove_component( Ref< Component > component )
+void Node::remove_component( Ref< NodeComponent > component )
 {
 	if ( component.is_null() || !data.components.has( component->get_component_name() ) )
 		return;
