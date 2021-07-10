@@ -48,7 +48,7 @@ void EditorResourcePicker::_update_resource() {
 	} else {
 		assign_button->set_icon(EditorNode::get_singleton()->get_object_icon(edited_resource.operator->(), "Object"));
 
-		auto comp = Object::cast_to< Component >( edited_resource.ptr() );
+		auto comp = Object::cast_to< NodeComponent >( edited_resource.ptr() );
 		auto res = Object::cast_to< Resource >( edited_resource.ptr() );
 		if (!comp && res->get_name() != String()) {
 			assign_button->set_text(res->get_name());
@@ -157,7 +157,7 @@ void EditorResourcePicker::_update_menu_items() {
 	if (edited_resource.is_valid()) {
 		edit_menu->add_icon_item(get_icon("Edit", "EditorIcons"), TTR("Edit"), OBJ_MENU_EDIT);
 		edit_menu->add_icon_item(get_icon("Clear", "EditorIcons"), TTR("Clear"), OBJ_MENU_CLEAR);
-		if ( base_type != "Component" )
+		if ( base_type != "NodeComponent" )
 		{
 			edit_menu->add_icon_item(get_icon("Duplicate", "EditorIcons"), TTR("Make Unique"), OBJ_MENU_MAKE_UNIQUE);
 			edit_menu->add_icon_item(get_icon("Save", "EditorIcons"), TTR("Save"), OBJ_MENU_SAVE);
@@ -253,7 +253,7 @@ void EditorResourcePicker::_edit_menu_cbk(int p_which) {
 		} break;
 
 		case OBJ_MENU_CLEAR: {
-			edited_resource = nullptr;
+			edited_resource = REF(nullptr);
 			emit_signal("resource_changed", edited_resource);
 			_update_resource();
 		} break;
@@ -733,7 +733,7 @@ Vector<String> EditorResourcePicker::get_allowed_types() const {
 
 void EditorResourcePicker::set_edited_resource(Ref<Reference> p_resource) {
 	if (!p_resource.is_valid()) {
-		edited_resource = nullptr;
+		edited_resource = REF(nullptr);
 		_update_resource();
 		return;
 	}

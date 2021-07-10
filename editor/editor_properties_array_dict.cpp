@@ -330,7 +330,7 @@ void EditorPropertyArray::update_property() {
 				value_type = subtype;
 			}
 
-			auto comp = Object::cast_to<Component>(value);
+			auto comp = Object::cast_to<NodeComponent>(value);
 			if (value_type == Variant::OBJECT && Object::cast_to<EncodedObjectAsID>(value)) {
 				EditorPropertyObjectID *editor = memnew(EditorPropertyObjectID);
 				editor->setup("Object");

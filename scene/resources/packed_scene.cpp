@@ -191,7 +191,7 @@ Node *SceneState::instance(GenEditState p_edit_state) const {
 
 				for ( int k = 0; k < ncomp_count; ++k )
 				{
-					Ref<Component> comp = Object::cast_to< Component >( ClassDB::instance( snames[ ncomps[ k ].type ] ) );
+					Ref<NodeComponent> comp = Object::cast_to< NodeComponent >( ClassDB::instance( snames[ ncomps[ k ].type ] ) );
 					
 					int nprop_count = ncomps[ k ].properties.size();
 					if (nprop_count) {
@@ -549,7 +549,7 @@ Error SceneState::_parse_node(Node *p_owner, Node *p_node, int p_parent_idx, Map
 	Array compList = p_node->get_components();
 	for ( int i = 0; i < compList.size(); ++i )
 	{
-		Component* comp = Object::cast_to< Component >( compList[ i ] );
+		NodeComponent* comp = Object::cast_to< NodeComponent >( compList[ i ] );
 		
 		List<PropertyInfo> plist;
 		comp->get_property_list(&plist);
