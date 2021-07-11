@@ -2972,7 +2972,7 @@ Array Node::get_components_editor()
     Array ret;
     for ( auto it = data.components.next( nullptr ); it != nullptr; it = data.components.next( it ) )
         ret.push_back( Variant( data.components[ * it ] ) );
-	ret.push_back( Variant() ); // empty slot for editor
+    ret.push_back( Variant() ); // empty slot for editor
     return ret;
 }
 
